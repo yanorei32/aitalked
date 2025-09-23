@@ -1,6 +1,6 @@
 mod aitalked;
-use std::ffi::{c_void, CString};
-
+use std::ffi::{c_char, c_void, CStr, CString};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use aitalked::*;
@@ -49,6 +49,72 @@ impl Args {
     }
 }
 
+struct TtsEventContext {}
+
+extern "system" fn tts_event_callback(
+    reason_code: EventReasonCode,
+    job_id: i32,
+    tick: u64,
+    name: *const c_char,
+    user_data: *mut c_void,
+) -> i32 {
+    println!("TtsEvent Callback {reason_code:?}");
+    0
+}
+
+struct RawBufContext<'a> {
+    buffer: &'a mut Vec<u8>,
+    notify: mpsc::Sender<()>,
+    aitalked: &'a Aitalked<'a>,
+    len_raw_buf_words: u32,
+}
+
+extern "system" fn raw_buf_callback(
+    reason_code: EventReasonCode,
+    job_id: i32,
+    _tick: u64,
+    user_data: *mut c_void,
+) -> i32 {
+    match reason_code {
+        EventReasonCode::RAWBUF_FULL
+        | EventReasonCode::RAWBUF_FLUSH
+        | EventReasonCode::RAWBUF_CLOSE => (),
+        _ => return 0,
+    }
+
+    println!("user_data: {user_data:x?}");
+
+    let context = unsafe { &mut *(user_data as *mut RawBufContext<'static>) };
+    let buffer_bytes = (context.len_raw_buf_words * 2).min(LEN_RAW_BUF_MAX_BYTES);
+
+    let mut buffer = vec![0; buffer_bytes as usize];
+
+    loop {
+        let mut samples_read = 0;
+        let code = context
+            .aitalked
+            .get_data(job_id, &mut buffer, &mut samples_read);
+
+        if code != ResultCode::SUCCESS {
+            break;
+        }
+
+        context
+            .buffer
+            .extend_from_slice(&buffer[0..(samples_read * 2) as usize]);
+
+        if samples_read * 2 < buffer_bytes {
+            break;
+        }
+    }
+
+    if reason_code == EventReasonCode::RAWBUF_CLOSE {
+        context.notify.blocking_send(()).unwrap();
+    }
+
+    0
+}
+
 struct ProcTextBufContext<'a> {
     buffer: &'a mut Vec<u8>,
     notify: mpsc::Sender<()>,
@@ -56,7 +122,7 @@ struct ProcTextBufContext<'a> {
     len_text_buf_bytes: u32,
 }
 
-extern "system" fn proc_text_buf(
+extern "system" fn text_buffer_callback(
     reason_code: EventReasonCode,
     job_id: i32,
     user_data: *mut c_void,
@@ -68,7 +134,7 @@ extern "system" fn proc_text_buf(
         _ => return 0,
     }
 
-    let context = unsafe { &mut *( user_data as *mut ProcTextBufContext<'static> ) };
+    let context = unsafe { &mut *(user_data as *mut ProcTextBufContext<'static>) };
     let buffer_length = context.len_text_buf_bytes.min(LEN_TEXT_BUF_MAX);
 
     let mut buffer = vec![0; buffer_length as usize];
@@ -77,8 +143,17 @@ extern "system" fn proc_text_buf(
         let mut bytes_read = 0;
         let mut position = 0;
 
-        context.aitalked.get_kana(job_id, &mut buffer, &mut bytes_read, &mut position);
-        context.buffer.extend_from_slice(&buffer[0..bytes_read as usize]);
+        let code = context
+            .aitalked
+            .get_kana(job_id, &mut buffer, &mut bytes_read, &mut position);
+
+        if code != ResultCode::SUCCESS {
+            break;
+        }
+
+        context
+            .buffer
+            .extend_from_slice(&buffer[0..bytes_read as usize]);
 
         if bytes_read < buffer_length - 1 {
             break;
@@ -98,17 +173,28 @@ async fn main() -> Result<()> {
     let config_factory = args.config()?;
     let config = config_factory.build();
 
+    let original_working_dir = std::env::current_dir()?;
+
+    /*\
+    |*| Load DLL
+    \*/
     std::env::set_current_dir(&args.installation_dir)?;
     let dll = unsafe { args.load_aitalked_dll()? };
     let aitalked = unsafe { Aitalked::new(&dll)? };
+
+    /*\
+    |*| Talk Library Initialization
+    \*/
     let code = aitalked.init(&config);
     println!("code: {:?}", code);
     let code = aitalked.load_language(&CString::new("Lang\\standard").unwrap());
     println!("code: {:?}", code);
-    // let code = aitalked.load_voice("hime_44");
     let code = aitalked.load_voice(&CString::new("akari_44").unwrap());
     println!("code: {:?}", code);
 
+    /*\
+    |*| Param Initialization
+    \*/
     let empty_tts_param_size = std::mem::size_of::<TtsParam>() as u32;
     println!("Empty TtsParamSize: {empty_tts_param_size}");
 
@@ -133,7 +219,10 @@ async fn main() -> Result<()> {
     println!("tts_param: {:#?}", boxed_tts_param.tts_param());
     println!("speakers: {:#?}", boxed_tts_param.speakers());
 
-    boxed_tts_param.tts_param_mut().proc_text_buf = Some(proc_text_buf);
+    /*\
+    |*| Start Text2Kana
+    \*/
+    boxed_tts_param.tts_param_mut().proc_text_buf = Some(text_buffer_callback);
     let code = aitalked.set_param(boxed_tts_param.tts_param());
     println!("Set code: {code:?}");
 
@@ -155,22 +244,75 @@ async fn main() -> Result<()> {
         &CString::new("Hello World").unwrap(),
     );
 
+    // await EOF received
     rx.recv().await.unwrap();
 
     println!("Received");
 
     drop(context);
 
-    println!("{buffer:x?}{}", buffer.len());
+    println!("{buffer:x?} (len: {})", buffer.len());
+    let code = aitalked.close_kana(job_id, 0);
+    println!("Close code: {code:?}");
 
-    // boxed_tts_param.speakers_mut()[0].volume = 0.3;
-    // let code = aitalked.set_param(boxed_tts_param.tts_param());
-    // println!("Set code: {code:?}");
-    //
-    // let code = aitalked.get_param(boxed_tts_param.tts_param_mut(), &mut actual_tts_param_size);
-    // println!("Get code: {code:?}");
-    // println!("tts_param: {:#?}", boxed_tts_param.tts_param());
-    // println!("speakers: {:#?}", boxed_tts_param.speakers());
+    // Unload proc_text_buf
+    boxed_tts_param.tts_param_mut().proc_text_buf = None;
+    let code = aitalked.set_param(boxed_tts_param.tts_param());
+    println!("Set code: {code:?}");
+
+    // Add '\0'
+    buffer.push(0);
+
+    let kana = CStr::from_bytes_with_nul(&buffer).unwrap();
+
+    /*\
+    |*| Start Kana2Speech
+    \*/
+    boxed_tts_param.tts_param_mut().proc_raw_buf = Some(raw_buf_callback);
+    boxed_tts_param.tts_param_mut().proc_event_tts = Some(tts_event_callback);
+    let code = aitalked.set_param(boxed_tts_param.tts_param());
+    println!("Set code: {code:?}");
+
+    let mut job_id = 0;
+    let (tx, mut rx) = mpsc::channel(1);
+
+    let mut buffer = vec![];
+
+    let mut context = RawBufContext {
+        buffer: &mut buffer,
+        notify: tx.clone(),
+        aitalked: &aitalked,
+        len_raw_buf_words: boxed_tts_param.tts_param().len_raw_buf_words,
+    };
+
+    let code = aitalked.text_to_speech(
+        &mut job_id,
+        &mut context as *mut RawBufContext as *mut std::ffi::c_void,
+        &kana,
+    );
+
+    println!("TTS code: {code:?}");
+
+    // await EOF received
+    rx.recv().await.unwrap();
+
+    println!("Received");
+
+    drop(context);
+
+    println!("Buffer: {}", buffer.len());
+
+    let code = aitalked.close_speech(job_id, 0);
+    println!("Close code: {code:?}");
+
+    /*\
+    |*| Write to file
+    \*/
+    std::env::set_current_dir(&original_working_dir)?;
+    let mut file = std::fs::File::create("output.bin").unwrap();
+    file.write_all(&buffer).unwrap();
+
+    println!("Output file created");
 
     Ok(())
 }
