@@ -1,16 +1,12 @@
 mod aitalked;
+use std::ffi::CString;
 
-use std::{
-    ffi::CString,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
-use aitalked::ConfigFactory;
+use aitalked::*;
 use anyhow::Result;
 use clap::Parser;
 use libloading::Library;
-
-use crate::aitalked::Aitalked;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -52,8 +48,7 @@ impl Args {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let args = Args::parse();
     let config_factory = args.config()?;
     let config = config_factory.build();
@@ -69,7 +64,40 @@ async fn main() -> Result<()> {
     let code = aitalked.load_voice("akari_44");
     println!("code: {:?}", code);
 
+    let empty_tts_param_size = std::mem::size_of::<TtsParam>() as u32;
+    println!("Empty TtsParamSize: {empty_tts_param_size}");
 
+    let speaker_param_size = std::mem::size_of::<SpeakerParam>() as u32;
+    println!("SpeakerParamSize: {speaker_param_size}");
+
+    let mut actual_tts_param_size = 0;
+    let code = aitalked.get_param(std::ptr::null_mut(), &mut actual_tts_param_size);
+
+    println!("code: {:?}", code);
+    println!("Actual TtsParamSize: {actual_tts_param_size}");
+
+    let estimate_speaker_param_count =
+        (actual_tts_param_size - empty_tts_param_size) / speaker_param_size;
+
+    println!("Estimate Speaker Param Count: {estimate_speaker_param_count}");
+
+    let mut boxed_tts_param = BoxedTtsParam::new(estimate_speaker_param_count as usize);
+    let code = aitalked.get_param(boxed_tts_param.tts_param_mut(), &mut actual_tts_param_size);
+
+    println!("Get code: {code:?}");
+    println!("tts_param: {:#?}", boxed_tts_param.tts_param());
+    println!("speakers: {:#?}", boxed_tts_param.speakers());
+
+    boxed_tts_param.speakers_mut()[0].volume = 3.3;
+    let code = aitalked.set_param(boxed_tts_param.tts_param());
+    println!("Set code: {code:?}");
+
+    let code = aitalked.get_param(boxed_tts_param.tts_param_mut(), &mut actual_tts_param_size);
+    println!("Get code: {code:?}");
+    println!("tts_param: {:#?}", boxed_tts_param.tts_param());
+    println!("speakers: {:#?}", boxed_tts_param.speakers());
+
+    // println!("speaker_param_buffer: {speaker_param_buffer:?}");
 
     Ok(())
 }
