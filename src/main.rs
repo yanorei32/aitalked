@@ -49,24 +49,48 @@ impl Args {
     }
 }
 
-struct TtsEventContext {}
-
-extern "system" fn tts_event_callback(
-    reason_code: EventReasonCode,
-    job_id: i32,
-    tick: u64,
-    name: *const c_char,
-    user_data: *mut c_void,
-) -> i32 {
-    println!("TtsEvent Callback {reason_code:?}");
-    0
+#[derive(Debug, PartialEq, Eq)]
+pub enum TtsEvent {
+    Phonetic(CString),
+    Position(u32),
+    Bookmark(CString),
 }
 
-struct RawBufContext<'a> {
+struct TextToSpeechContext<'a> {
+    events: &'a mut Vec<(u64, TtsEvent)>,
     buffer: &'a mut Vec<u8>,
     notify: mpsc::Sender<()>,
     aitalked: &'a Aitalked<'a>,
     len_raw_buf_words: u32,
+}
+
+extern "system" fn tts_event_callback(
+    reason_code: EventReasonCode,
+    _job_id: i32,
+    tick: u64,
+    name: *const c_char,
+    user_data: *mut c_void,
+) -> i32 {
+    let context = unsafe { &mut *(user_data as *mut TextToSpeechContext<'static>) };
+
+    let name = unsafe { CStr::from_ptr(name as *const i8) };
+
+    match reason_code {
+        EventReasonCode::PH_LABEL => {
+            context.events.push((tick, TtsEvent::Phonetic(name.to_owned())));
+        },
+        EventReasonCode::AUTO_BOOKMARK => {
+            if let Ok(value) = name.to_string_lossy().parse() {
+                context.events.push((tick, TtsEvent::Position(value)));
+            }
+        },
+        EventReasonCode::BOOKMARK  => {
+            context.events.push((tick, TtsEvent::Bookmark(name.to_owned())));
+        },
+        _ => {},
+    }
+
+    0
 }
 
 extern "system" fn raw_buf_callback(
@@ -84,7 +108,7 @@ extern "system" fn raw_buf_callback(
 
     println!("user_data: {user_data:x?}");
 
-    let context = unsafe { &mut *(user_data as *mut RawBufContext<'static>) };
+    let context = unsafe { &mut *(user_data as *mut TextToSpeechContext<'static>) };
     let buffer_bytes = (context.len_raw_buf_words * 2).min(LEN_RAW_BUF_MAX_BYTES);
 
     let mut buffer = vec![0; buffer_bytes as usize];
@@ -277,8 +301,10 @@ async fn main() -> Result<()> {
     let (tx, mut rx) = mpsc::channel(1);
 
     let mut buffer = vec![];
+    let mut events= vec![];
 
-    let mut context = RawBufContext {
+    let mut context = TextToSpeechContext {
+        events: &mut events,
         buffer: &mut buffer,
         notify: tx.clone(),
         aitalked: &aitalked,
@@ -287,7 +313,7 @@ async fn main() -> Result<()> {
 
     let code = aitalked.text_to_speech(
         &mut job_id,
-        &mut context as *mut RawBufContext as *mut std::ffi::c_void,
+        &mut context as *mut TextToSpeechContext as *mut std::ffi::c_void,
         &kana,
     );
 
@@ -301,6 +327,7 @@ async fn main() -> Result<()> {
     drop(context);
 
     println!("Buffer: {}", buffer.len());
+    println!("Events: {:#?}", events);
 
     let code = aitalked.close_speech(job_id, 0);
     println!("Close code: {code:?}");
