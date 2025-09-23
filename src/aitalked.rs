@@ -13,9 +13,9 @@ pub struct ConfigFactory {
 }
 
 impl ConfigFactory {
-    pub fn build(&self) -> Config {
+    pub fn build(&self) -> Config<'_> {
         Config {
-            hz_voice_db: 0xAC44,
+            hz_voice_db: 44100,
             dir_voice_dbs: self.dir_voice_dbs.as_ptr(),
             msec_timeout: 1000,
             path_license: self.path_license.as_ptr(),
@@ -26,7 +26,7 @@ impl ConfigFactory {
     }
 }
 
-#[repr(packed)]
+#[repr(C)]
 pub struct Config<'a> {
     hz_voice_db: u32,
     dir_voice_dbs: *const c_char,

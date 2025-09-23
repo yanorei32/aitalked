@@ -15,7 +15,8 @@ use crate::aitalked::Aitalked;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    #[arg(env, default_value = "C:\\Program Files (x86)\\Gynoid\\GynoidTalk")]
+    // #[arg(env, default_value = "C:\\Program Files (x86)\\Gynoid\\GynoidTalk")]
+    #[arg(env, default_value = "C:\\Program Files (x86)\\AHS\\VOICEROID2")]
     installation_dir: PathBuf,
     #[arg(env, default_value = "aitalked.dll")]
     aitalked_dll: PathBuf,
@@ -23,7 +24,8 @@ struct Args {
     voice_dir: PathBuf,
     #[arg(env, default_value = "aitalk.lic")]
     aitalk_lic: PathBuf,
-    #[arg(env, default_value = "Afzu154YOD9urEoHBsCF")]
+    // #[arg(env, default_value = "Afzu154YOD9urEoHBsCF")]
+    #[arg(env, default_value = "ORXJC6AIWAUKDpDbH2al")]
     code_auth_seed: String,
 }
 
@@ -63,8 +65,11 @@ async fn main() -> Result<()> {
     println!("code: {:?}", code);
     let code = aitalked.load_language("Lang\\standard");
     println!("code: {:?}", code);
-    let code = aitalked.load_voice("hime_44");
+    // let code = aitalked.load_voice("hime_44");
+    let code = aitalked.load_voice("akari_44");
     println!("code: {:?}", code);
+
+
 
     Ok(())
 }
