@@ -110,8 +110,6 @@ extern "system" fn raw_buf_callback(
         _ => return 0,
     }
 
-    println!("user_data: {user_data:x?}");
-
     let context = unsafe { &mut *(user_data as *mut TextToSpeechContext<'static>) };
     let buffer_bytes = (context.len_raw_buf_words * 2).min(LEN_RAW_BUF_MAX_BYTES);
 
@@ -248,6 +246,14 @@ async fn main() -> Result<()> {
     println!("speakers: {:#?}", boxed_tts_param.speakers());
 
     /*\
+    |*| Set Params
+    \*/
+    boxed_tts_param.tts_param_mut().pause_begin = 0;
+    boxed_tts_param.tts_param_mut().pause_term = 0;
+    boxed_tts_param.tts_param_mut().extend_format = JEITA_RUBY | AUTO_BOOKMARK;
+
+
+    /*\
     |*| Start Text2Kana
     \*/
     boxed_tts_param.tts_param_mut().proc_text_buf = Some(text_buffer_callback);
@@ -332,6 +338,12 @@ async fn main() -> Result<()> {
 
     println!("Buffer: {}", buffer.len());
     println!("Events: {:#?}", events);
+
+    // Unload
+    boxed_tts_param.tts_param_mut().proc_raw_buf = None;
+    boxed_tts_param.tts_param_mut().proc_event_tts = None;
+    let code = aitalked.set_param(boxed_tts_param.tts_param());
+    println!("Set code: {code:?}");
 
     let code = aitalked.close_speech(job_id, 0);
     println!("Close code: {code:?}");

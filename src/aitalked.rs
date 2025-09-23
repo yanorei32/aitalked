@@ -10,6 +10,8 @@ use libloading::{Library, Symbol};
 
 pub const LEN_TEXT_BUF_MAX: u32 = 64 * 1024;
 pub const LEN_RAW_BUF_MAX_BYTES: u32 = 1024 * 1024;
+pub const JEITA_RUBY: i32 = 1;
+pub const AUTO_BOOKMARK: i32 = 16;
 
 pub struct ConfigFactory {
     pub dir_voice_dbs: CString,
