@@ -1,5 +1,5 @@
 mod aitalked;
-use std::ffi::CString;
+use std::ffi::{c_void, CString};
 
 use std::path::{Path, PathBuf};
 
@@ -7,6 +7,7 @@ use aitalked::*;
 use anyhow::Result;
 use clap::Parser;
 use libloading::Library;
+use tokio::sync::mpsc;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -48,7 +49,51 @@ impl Args {
     }
 }
 
-fn main() -> Result<()> {
+struct ProcTextBufContext<'a> {
+    buffer: &'a mut Vec<u8>,
+    notify: mpsc::Sender<()>,
+    aitalked: &'a Aitalked<'a>,
+    len_text_buf_bytes: u32,
+}
+
+extern "system" fn proc_text_buf(
+    reason_code: EventReasonCode,
+    job_id: i32,
+    user_data: *mut c_void,
+) -> i32 {
+    match reason_code {
+        EventReasonCode::TEXTBUF_FULL
+        | EventReasonCode::TEXTBUF_FLUSH
+        | EventReasonCode::TEXTBUF_CLOSE => (),
+        _ => return 0,
+    }
+
+    let context = unsafe { &mut *( user_data as *mut ProcTextBufContext<'static> ) };
+    let buffer_length = context.len_text_buf_bytes.min(LEN_TEXT_BUF_MAX);
+
+    let mut buffer = vec![0; buffer_length as usize];
+
+    loop {
+        let mut bytes_read = 0;
+        let mut position = 0;
+
+        context.aitalked.get_kana(job_id, &mut buffer, &mut bytes_read, &mut position);
+        context.buffer.extend_from_slice(&buffer[0..bytes_read as usize]);
+
+        if bytes_read < buffer_length - 1 {
+            break;
+        }
+    }
+
+    if reason_code == EventReasonCode::TEXTBUF_CLOSE {
+        context.notify.blocking_send(()).unwrap();
+    }
+
+    0
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Args::parse();
     let config_factory = args.config()?;
     let config = config_factory.build();
@@ -58,10 +103,10 @@ fn main() -> Result<()> {
     let aitalked = unsafe { Aitalked::new(&dll)? };
     let code = aitalked.init(&config);
     println!("code: {:?}", code);
-    let code = aitalked.load_language("Lang\\standard");
+    let code = aitalked.load_language(&CString::new("Lang\\standard").unwrap());
     println!("code: {:?}", code);
     // let code = aitalked.load_voice("hime_44");
-    let code = aitalked.load_voice("akari_44");
+    let code = aitalked.load_voice(&CString::new("akari_44").unwrap());
     println!("code: {:?}", code);
 
     let empty_tts_param_size = std::mem::size_of::<TtsParam>() as u32;
@@ -88,16 +133,44 @@ fn main() -> Result<()> {
     println!("tts_param: {:#?}", boxed_tts_param.tts_param());
     println!("speakers: {:#?}", boxed_tts_param.speakers());
 
-    boxed_tts_param.speakers_mut()[0].volume = 3.3;
+    boxed_tts_param.tts_param_mut().proc_text_buf = Some(proc_text_buf);
     let code = aitalked.set_param(boxed_tts_param.tts_param());
     println!("Set code: {code:?}");
 
-    let code = aitalked.get_param(boxed_tts_param.tts_param_mut(), &mut actual_tts_param_size);
-    println!("Get code: {code:?}");
-    println!("tts_param: {:#?}", boxed_tts_param.tts_param());
-    println!("speakers: {:#?}", boxed_tts_param.speakers());
+    let mut job_id = 0;
 
-    // println!("speaker_param_buffer: {speaker_param_buffer:?}");
+    let mut buffer = vec![];
+    let (tx, mut rx) = mpsc::channel(1);
+
+    let mut context = ProcTextBufContext {
+        buffer: &mut buffer,
+        notify: tx.clone(),
+        aitalked: &aitalked,
+        len_text_buf_bytes: boxed_tts_param.tts_param().len_text_buf_bytes,
+    };
+
+    aitalked.text_to_kana(
+        &mut job_id,
+        &mut context as *mut ProcTextBufContext as *mut std::ffi::c_void,
+        &CString::new("Hello World").unwrap(),
+    );
+
+    rx.recv().await.unwrap();
+
+    println!("Received");
+
+    drop(context);
+
+    println!("{buffer:x?}{}", buffer.len());
+
+    // boxed_tts_param.speakers_mut()[0].volume = 0.3;
+    // let code = aitalked.set_param(boxed_tts_param.tts_param());
+    // println!("Set code: {code:?}");
+    //
+    // let code = aitalked.get_param(boxed_tts_param.tts_param_mut(), &mut actual_tts_param_size);
+    // println!("Get code: {code:?}");
+    // println!("tts_param: {:#?}", boxed_tts_param.tts_param());
+    // println!("speakers: {:#?}", boxed_tts_param.speakers());
 
     Ok(())
 }

@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_char, c_void, CString},
+    ffi::{c_char, c_void, CString, CStr},
     marker::PhantomData,
 };
 
@@ -7,6 +7,8 @@ use std::alloc::{alloc, dealloc, Layout};
 
 use anyhow::Result;
 use libloading::{Library, Symbol};
+
+pub const LEN_TEXT_BUF_MAX: u32 = 65536;
 
 pub struct ConfigFactory {
     pub dir_voice_dbs: CString,
@@ -29,7 +31,25 @@ impl ConfigFactory {
 }
 
 #[repr(i32)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+#[allow(non_camel_case_types)]
+pub enum EventReasonCode {
+    TEXTBUF_FULL = 101,
+    TEXTBUF_FLUSH = 102,
+    TEXTBUF_CLOSE = 103,
+    RAWBUF_FULL = 201,
+    RAWBUF_FLUSH = 202,
+    RAWBUF_CLOSE = 203,
+    PH_LABEL = 301,
+    BOOKMARK = 302,
+    AUTO_BOOKMARK = 303,
+}
+
+#[repr(i32)]
+#[derive(Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+#[allow(non_camel_case_types)]
 pub enum ResultCode {
     SUCCESS = 0,
     INTERNAL_ERROR = -1,
@@ -58,8 +78,27 @@ pub enum ResultCode {
     USERDIC_NOENTRY = -1012,
 }
 
+#[repr(i32)]
+#[derive(Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+#[allow(non_camel_case_types)]
+pub enum JobInOut {
+    PLAIN_TO_WAVE = 11,
+    AIKANA_TO_WAVE = 12,
+    JEITA_TO_WAVE = 13,
+    PLAIN_TO_AIKANA = 21,
+    AIKANA_TO_JEITA = 32,
+}
+
 pub const MAX_VOICE_NAME: usize = 80;
 pub const MAX_JEITA_CONTROL: usize = 12;
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct JobParam {
+    pub model_in_out: JobInOut,
+    pub user_data: *mut c_void,
+}
 
 #[repr(C)]
 #[derive(Debug)]
@@ -119,7 +158,7 @@ impl Default for SpeakerParam {
 #[derive(Debug)]
 pub struct TtsParam {
     pub size: u32,
-    pub proc_text_buf: Option<unsafe extern "system" fn(i32, i32, *mut c_void) -> i32>,
+    pub proc_text_buf: Option<unsafe extern "system" fn(EventReasonCode, i32, *mut c_void) -> i32>,
     pub proc_raw_buf: Option<unsafe extern "system" fn(i32, i32, u64, *mut c_void) -> i32>,
     pub proc_event_tts: Option<unsafe extern "system" fn(i32, i32, u64, *const c_char, *mut c_void) -> i32>,
     pub len_text_buf_bytes: u32,
@@ -220,6 +259,8 @@ pub struct Aitalked<'lib> {
     voice_load: Symbol<'lib, unsafe extern "system" fn(*const c_char) -> ResultCode>,
     set_param: Symbol<'lib, unsafe extern "system" fn(*const TtsParam) -> ResultCode>,
     get_param: Symbol<'lib, unsafe extern "system" fn(*mut TtsParam, *mut u32) -> ResultCode>,
+    text_to_kana: Symbol<'lib, unsafe extern "system" fn(*mut i32, *const JobParam, *const c_char) -> ResultCode>,
+    get_kana: Symbol<'lib, unsafe extern "system" fn(i32, *mut u8, u32, *mut u32, *mut u32) -> ResultCode>,
 }
 
 impl<'lib> Aitalked<'lib> {
@@ -229,12 +270,17 @@ impl<'lib> Aitalked<'lib> {
         let voice_load = lib.get(b"_AITalkAPI_VoiceLoad@4")?;
         let set_param = lib.get(b"_AITalkAPI_SetParam@4")?;
         let get_param = lib.get(b"_AITalkAPI_GetParam@8")?;
+        let text_to_kana = lib.get(b"_AITalkAPI_TextToKana@12")?;
+        let get_kana = lib.get(b"_AITalkAPI_GetKana@20")?;
+
         Ok(Self {
             init,
             lang_load,
             voice_load,
             set_param,
             get_param,
+            text_to_kana,
+            get_kana,
         })
     }
 
@@ -242,13 +288,11 @@ impl<'lib> Aitalked<'lib> {
         unsafe { (self.init)(config) }
     }
 
-    pub fn load_language(&self, lang_name: &str) -> ResultCode {
-        let lang_name = CString::new(lang_name).unwrap();
+    pub fn load_language(&self, lang_name: &CStr) -> ResultCode {
         unsafe { (self.lang_load)(lang_name.as_ptr()) }
     }
 
-    pub fn load_voice(&self, voice_name: &str) -> ResultCode {
-        let voice_name = CString::new(voice_name).unwrap();
+    pub fn load_voice(&self, voice_name: &CStr) -> ResultCode {
         unsafe { (self.voice_load)(voice_name.as_ptr()) }
     }
 
@@ -258,5 +302,22 @@ impl<'lib> Aitalked<'lib> {
 
     pub fn set_param(&self, tts_param: &TtsParam) -> ResultCode {
         unsafe { (self.set_param)(tts_param) }
+    }
+
+    pub fn text_to_kana(&self, job_id: &mut i32, user_data: *mut c_void, text: &CStr) -> ResultCode {
+        let job_param = JobParam {
+            user_data,
+            model_in_out: JobInOut::PLAIN_TO_AIKANA,
+        };
+
+        unsafe {
+            (self.text_to_kana)(job_id, &job_param, text.as_ptr())
+        }
+    }
+
+    pub fn get_kana(&self, job_id: i32, buffer: &mut [u8], bytes_read: &mut u32, position: &mut u32) -> ResultCode {
+        unsafe {
+            (self.get_kana)(job_id, buffer.as_mut_ptr(), buffer.len() as u32, bytes_read, position)
+        }
     }
 }
