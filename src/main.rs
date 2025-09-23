@@ -77,17 +77,21 @@ extern "system" fn tts_event_callback(
 
     match reason_code {
         EventReasonCode::PH_LABEL => {
-            context.events.push((tick, TtsEvent::Phonetic(name.to_owned())));
-        },
+            context
+                .events
+                .push((tick, TtsEvent::Phonetic(name.to_owned())));
+        }
         EventReasonCode::AUTO_BOOKMARK => {
             if let Ok(value) = name.to_string_lossy().parse() {
                 context.events.push((tick, TtsEvent::Position(value)));
             }
-        },
-        EventReasonCode::BOOKMARK  => {
-            context.events.push((tick, TtsEvent::Bookmark(name.to_owned())));
-        },
-        _ => {},
+        }
+        EventReasonCode::BOOKMARK => {
+            context
+                .events
+                .push((tick, TtsEvent::Bookmark(name.to_owned())));
+        }
+        _ => {}
     }
 
     0
@@ -301,7 +305,7 @@ async fn main() -> Result<()> {
     let (tx, mut rx) = mpsc::channel(1);
 
     let mut buffer = vec![];
-    let mut events= vec![];
+    let mut events = vec![];
 
     let mut context = TextToSpeechContext {
         events: &mut events,
