@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use aitalked::*;
 use anyhow::Result;
 use clap::Parser;
+use encoding_rs::*;
 use libloading::Library;
 use tokio::sync::mpsc;
 
@@ -19,6 +20,8 @@ struct Args {
     aitalked_dll: PathBuf,
     #[arg(env, default_value = "Voice")]
     voice_dir: PathBuf,
+    #[arg(long, env, short)]
+    character: String,
     #[arg(env, default_value = "aitalk.lic")]
     aitalk_lic: PathBuf,
     // #[arg(env, default_value = "Afzu154YOD9urEoHBsCF")]
@@ -27,7 +30,7 @@ struct Args {
 }
 
 fn path_to_cstring(path: &Path) -> Result<CString> {
-    Ok(CString::new(path.to_str().unwrap())?)
+    Ok(CString::new(SHIFT_JIS.encode(path.to_str().unwrap()).0)?)
 }
 
 impl Args {
@@ -199,24 +202,29 @@ async fn main() -> Result<()> {
     let config_factory = args.config()?;
     let config = config_factory.build();
 
-    let original_working_dir = std::env::current_dir()?;
 
     /*\
     |*| Load DLL
     \*/
-    std::env::set_current_dir(&args.installation_dir)?;
     let dll = unsafe { args.load_aitalked_dll()? };
     let aitalked = unsafe { Aitalked::new(&dll)? };
 
-    /*\
-    |*| Talk Library Initialization
-    \*/
     let code = aitalked.init(&config);
-    println!("code: {:?}", code);
-    let code = aitalked.load_language(&CString::new("Lang\\standard").unwrap());
-    println!("code: {:?}", code);
-    let code = aitalked.load_voice(&CString::new("akari_44").unwrap());
-    println!("code: {:?}", code);
+    println!("aitalked.init code: {:?}", code);
+
+    {
+        let original_working_dir = std::env::current_dir()?;
+        std::env::set_current_dir(&args.installation_dir)?;
+
+        let code = aitalked.lang_load(&CString::new("Lang\\standard").unwrap());
+        println!("aitalked.lang_load code: {:?}", code);
+
+        std::env::set_current_dir(&original_working_dir)?;
+    }
+
+    let code = aitalked.voice_load(&CString::new("akari_44").unwrap());
+    println!("aitalked.voice_load code: {:?}", code);
+
 
     /*\
     |*| Param Initialization
@@ -228,9 +236,10 @@ async fn main() -> Result<()> {
     println!("SpeakerParamSize: {speaker_param_size}");
 
     let mut actual_tts_param_size = 0;
-    let code = aitalked.get_param(std::ptr::null_mut(), &mut actual_tts_param_size);
 
-    println!("code: {:?}", code);
+    let code = aitalked.get_param(std::ptr::null_mut(), &mut actual_tts_param_size);
+    println!("aitalked.get_param: {:?} (expects: INSUFFICIENT)", code);
+
     println!("Actual TtsParamSize: {actual_tts_param_size}");
 
     let estimate_speaker_param_count =
@@ -240,10 +249,7 @@ async fn main() -> Result<()> {
 
     let mut boxed_tts_param = BoxedTtsParam::new(estimate_speaker_param_count as usize);
     let code = aitalked.get_param(boxed_tts_param.tts_param_mut(), &mut actual_tts_param_size);
-
-    println!("Get code: {code:?}");
-    println!("tts_param: {:#?}", boxed_tts_param.tts_param());
-    println!("speakers: {:#?}", boxed_tts_param.speakers());
+    println!("aitalked.get_param: {code:?}");
 
     /*\
     |*| Set Params
@@ -251,14 +257,18 @@ async fn main() -> Result<()> {
     boxed_tts_param.tts_param_mut().pause_begin = 0;
     boxed_tts_param.tts_param_mut().pause_term = 0;
     boxed_tts_param.tts_param_mut().extend_format = JEITA_RUBY | AUTO_BOOKMARK;
+    let code = aitalked.set_param(boxed_tts_param.tts_param());
+    println!("aitalked.set_param: {code:?}");
 
+    println!("tts_param: {:#?}", boxed_tts_param.tts_param());
+    println!("speakers: {:#?}", boxed_tts_param.speakers());
 
     /*\
     |*| Start Text2Kana
     \*/
     boxed_tts_param.tts_param_mut().proc_text_buf = Some(text_buffer_callback);
     let code = aitalked.set_param(boxed_tts_param.tts_param());
-    println!("Set code: {code:?}");
+    println!("aitalked.set_param: {code:?}");
 
     let mut job_id = 0;
 
@@ -275,24 +285,23 @@ async fn main() -> Result<()> {
     aitalked.text_to_kana(
         &mut job_id,
         &mut context as *mut ProcTextBufContext as *mut std::ffi::c_void,
-        &CString::new("Hello World").unwrap(),
+        &CString::new(SHIFT_JIS.encode("こんにちは。世界。").0).unwrap(),
     );
 
     // await EOF received
     rx.recv().await.unwrap();
 
-    println!("Received");
 
     drop(context);
 
-    println!("{buffer:x?} (len: {})", buffer.len());
+    println!("Kana: {}", SHIFT_JIS.decode(&buffer).0);
     let code = aitalked.close_kana(job_id, 0);
-    println!("Close code: {code:?}");
+    println!("aitalked.close_kana: {code:?}");
 
     // Unload proc_text_buf
     boxed_tts_param.tts_param_mut().proc_text_buf = None;
     let code = aitalked.set_param(boxed_tts_param.tts_param());
-    println!("Set code: {code:?}");
+    println!("aitalked.set_param: {code:?}");
 
     // Add '\0'
     buffer.push(0);
@@ -305,7 +314,7 @@ async fn main() -> Result<()> {
     boxed_tts_param.tts_param_mut().proc_raw_buf = Some(raw_buf_callback);
     boxed_tts_param.tts_param_mut().proc_event_tts = Some(tts_event_callback);
     let code = aitalked.set_param(boxed_tts_param.tts_param());
-    println!("Set code: {code:?}");
+    println!("aitalked.set_param: {code:?}");
 
     let mut job_id = 0;
     let (tx, mut rx) = mpsc::channel(1);
@@ -326,32 +335,31 @@ async fn main() -> Result<()> {
         &mut context as *mut TextToSpeechContext as *mut std::ffi::c_void,
         &kana,
     );
-
-    println!("TTS code: {code:?}");
+    println!("aitalked.text_to_speech: {code:?}");
 
     // await EOF received
     rx.recv().await.unwrap();
 
-    println!("Received");
-
     drop(context);
 
-    println!("Buffer: {}", buffer.len());
-    println!("Events: {:#?}", events);
+    println!("AudioBufferLength: {}", buffer.len());
+    println!("Events:");
+    for event in events {
+        println!(" - {event:?}");
+    }
 
     // Unload
     boxed_tts_param.tts_param_mut().proc_raw_buf = None;
     boxed_tts_param.tts_param_mut().proc_event_tts = None;
     let code = aitalked.set_param(boxed_tts_param.tts_param());
-    println!("Set code: {code:?}");
+    println!("aitalked.set_param: {code:?}");
 
     let code = aitalked.close_speech(job_id, 0);
-    println!("Close code: {code:?}");
+    println!("aitalked.close_speech: {code:?}");
 
     /*\
     |*| Write to file
     \*/
-    std::env::set_current_dir(&original_working_dir)?;
     let mut file = std::fs::File::create("output.bin").unwrap();
     file.write_all(&buffer).unwrap();
 

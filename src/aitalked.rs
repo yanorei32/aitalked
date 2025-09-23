@@ -5,8 +5,10 @@ use std::{
 
 use std::alloc::{alloc, dealloc, Layout};
 
+use derivative::Derivative;
 use anyhow::Result;
 use libloading::{Library, Symbol};
+use encoding_rs::*;
 
 pub const LEN_TEXT_BUF_MAX: u32 = 64 * 1024;
 pub const LEN_RAW_BUF_MAX_BYTES: u32 = 1024 * 1024;
@@ -104,14 +106,26 @@ pub struct JobParam {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct JeitaParam {
+    #[derivative(Debug(format_with="format_sjis_cchar_slice"))]
     pub female_name: [c_char; MAX_VOICE_NAME],
+    #[derivative(Debug(format_with="format_sjis_cchar_slice"))]
     pub male_name: [c_char; MAX_VOICE_NAME],
     pub pause_middle: i32,
     pub pause_long: i32,
     pub pause_sentence: i32,
+    #[derivative(Debug(format_with="format_sjis_cchar_slice"))]
     pub control: [c_char; MAX_JEITA_CONTROL],
+}
+
+fn format_sjis_cchar_slice(s: &[c_char], fmt: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    use std::fmt::Debug;
+    let s = unsafe { std::slice::from_raw_parts(s.as_ptr() as *const u8, s.len()) };
+    let (s, _encoding, _errors) = SHIFT_JIS.decode(s);
+    let s = s.trim_matches(char::from(0));
+    s.fmt(fmt)
 }
 
 impl Default for JeitaParam {
@@ -128,8 +142,10 @@ impl Default for JeitaParam {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct SpeakerParam {
+    #[derivative(Debug(format_with="format_sjis_cchar_slice"))]
     pub voice_name: [c_char; MAX_VOICE_NAME],
     pub volume: f32,
     pub speed: f32,
@@ -138,6 +154,7 @@ pub struct SpeakerParam {
     pub pause_middle: i32,
     pub pause_long: i32,
     pub pause_sentence: i32,
+    #[derivative(Debug(format_with="format_sjis_cchar_slice"))]
     pub style_rate: [c_char; MAX_VOICE_NAME],
 }
 
@@ -158,7 +175,8 @@ impl Default for SpeakerParam {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct TtsParam {
     pub size: u32,
     pub proc_text_buf: Option<unsafe extern "system" fn(EventReasonCode, i32, *mut c_void) -> i32>,
@@ -173,6 +191,7 @@ pub struct TtsParam {
     pub pause_begin: i32,
     pub pause_term: i32,
     pub extend_format: i32,
+    #[derivative(Debug(format_with="format_sjis_cchar_slice"))]
     pub voice_name: [c_char; MAX_VOICE_NAME],
     pub jeita: JeitaParam,
     pub num_speakers: u32,
@@ -311,11 +330,11 @@ impl<'lib> Aitalked<'lib> {
         unsafe { (self.init)(config) }
     }
 
-    pub fn load_language(&self, lang_name: &CStr) -> ResultCode {
+    pub fn lang_load(&self, lang_name: &CStr) -> ResultCode {
         unsafe { (self.lang_load)(lang_name.as_ptr()) }
     }
 
-    pub fn load_voice(&self, voice_name: &CStr) -> ResultCode {
+    pub fn voice_load(&self, voice_name: &CStr) -> ResultCode {
         unsafe { (self.voice_load)(voice_name.as_ptr()) }
     }
 
