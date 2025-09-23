@@ -1,10 +1,9 @@
-mod aitalked;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use aitalked::*;
 use anyhow::Result;
+use aitalked::*;
 use clap::Parser;
 use encoding_rs::*;
 use libloading::Library;
@@ -29,14 +28,14 @@ struct Args {
     code_auth_seed: String,
 }
 
-fn path_to_cstring(path: &Path) -> Result<CString> {
-    Ok(CString::new(SHIFT_JIS.encode(path.to_str().unwrap()).0)?)
+fn path_to_cstring(path: &Path) -> CString {
+    CString::new(SHIFT_JIS.encode(path.to_str().unwrap()).0).unwrap()
 }
 
 impl Args {
     fn config(&self) -> Result<ConfigFactory> {
-        let dir_voice_dbs = path_to_cstring(&self.installation_dir.join(&self.voice_dir))?;
-        let path_license = path_to_cstring(&self.installation_dir.join(&self.aitalk_lic))?;
+        let dir_voice_dbs = path_to_cstring(&self.installation_dir.join(&self.voice_dir));
+        let path_license = path_to_cstring(&self.installation_dir.join(&self.aitalk_lic));
         let code_auth_seed = CString::new(self.code_auth_seed.as_str())?;
         Ok(ConfigFactory {
             dir_voice_dbs,

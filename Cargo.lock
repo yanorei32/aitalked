@@ -3,10 +3,19 @@
 version = 4
 
 [[package]]
+name = "aitalked"
+version = "0.1.0"
+dependencies = [
+ "derivative",
+ "encoding_rs",
+ "libloading",
+]
+
+[[package]]
 name = "anyhow"
-version = "1.0.66"
+version = "1.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "216261ddc8289130e551ddcd5ce8a064710c0d064a4d2895c67151c92b5443f6"
+checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
 name = "atty"
@@ -107,6 +116,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
 
 [[package]]
+name = "helloworld"
+version = "0.1.0"
+dependencies = [
+ "aitalked",
+ "anyhow",
+ "clap",
+ "encoding_rs",
+ "libloading",
+ "tokio",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -166,18 +187,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys",
-]
-
-[[package]]
-name = "netaitalk"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "derivative",
- "encoding_rs",
- "libloading",
- "tokio",
 ]
 
 [[package]]

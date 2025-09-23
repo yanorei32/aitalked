@@ -6,7 +6,6 @@ use std::{
 use std::alloc::{alloc, dealloc, Layout};
 
 use derivative::Derivative;
-use anyhow::Result;
 use libloading::{Library, Symbol};
 use encoding_rs::*;
 
@@ -298,7 +297,7 @@ pub struct Aitalked<'lib> {
 }
 
 impl<'lib> Aitalked<'lib> {
-    pub unsafe fn new(lib: &'lib Library) -> Result<Self> {
+    pub unsafe fn new(lib: &'lib Library) -> Result<Self, libloading::Error> {
         let init = lib.get(b"_AITalkAPI_Init@4")?;
         let lang_load = lib.get(b"_AITalkAPI_LangLoad@4")?;
         let voice_load = lib.get(b"_AITalkAPI_VoiceLoad@4")?;
