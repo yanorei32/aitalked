@@ -1,5 +1,5 @@
 use std::ffi::{c_char, c_void, CStr, CString};
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use aitalked::{api as aitalked_api, binding::*, model::*};
@@ -379,10 +379,17 @@ async fn main() -> Result<()> {
     println!("aitalked_api::close_speech: {code:?}");
 
     /*\
-    |*| Write to file
+    |*| Write to WAVE file
     \*/
-    let mut file = std::fs::File::create("output.bin").unwrap();
-    file.write_all(&buffer).unwrap();
+    const WAV_HEADER_SIZE: usize = 44;
+    let mut file = BufWriter::new(std::fs::File::create("output.wav").unwrap());
+    file.write_all(b"RIFF")?;
+    file.write_all(&((buffer.len() + WAV_HEADER_SIZE) as u32).to_le_bytes())?;
+    file.write_all(b"WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00")?;
+    file.write_all(&44100u32.to_le_bytes())?;
+    file.write_all(&(44100u32 * 2).to_le_bytes())?;
+    file.write_all(b"\x02\x00\x10\x00data")?;
+    file.write_all(&buffer)?;
 
     println!("Output file created");
 
