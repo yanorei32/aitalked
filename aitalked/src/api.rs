@@ -183,7 +183,6 @@ pub unsafe fn get_data(job_id: i32, buffer: &mut [u8], words_read: &mut u32) -> 
 }
 
 pub unsafe fn get_status(job_id: i32, code: &mut StatusCode) -> ResultCode {
-    let status_code = StatusCode::WRONG_STATE;
     (AITALKED_BINDS
         .get()
         .expect("aitalked::load_dll() is not called.")
