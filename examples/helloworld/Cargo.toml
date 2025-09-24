@@ -9,6 +9,5 @@ edition = "2021"
 clap = { version = "4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
 encoding_rs = "0.8.35"
-libloading = "0.7"
 aitalked = { path = "../../aitalked" }
 anyhow = "1"
