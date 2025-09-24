@@ -15,17 +15,19 @@ struct Args {
     // #[arg(env, default_value = "C:\\Program Files (x86)\\Gynoid\\GynoidTalk")]
     #[arg(env, default_value = "C:\\Program Files (x86)\\AHS\\VOICEROID2")]
     installation_dir: PathBuf,
-    #[arg(env, default_value = "aitalked.dll")]
+    #[arg(long, env, default_value = "aitalked.dll")]
     aitalked_dll: PathBuf,
-    #[arg(env, default_value = "Voice")]
+    #[arg(long, env, default_value = "Voice")]
     voice_dir: PathBuf,
     #[arg(long, env, short)]
     character: String,
-    #[arg(env, default_value = "aitalk.lic")]
+    #[arg(long, env, default_value = "aitalk.lic")]
     aitalk_lic: PathBuf,
     // #[arg(env, default_value = "Afzu154YOD9urEoHBsCF")]
-    #[arg(env, default_value = "ORXJC6AIWAUKDpDbH2al")]
+    #[arg(long, env, default_value = "ORXJC6AIWAUKDpDbH2al")]
     code_auth_seed: String,
+    #[arg(short, long, env, default_value = "こんにちは、世界")]
+    text: String,
 }
 
 fn path_to_cstring(path: &Path) -> CString {
@@ -302,7 +304,7 @@ async fn main() -> Result<()> {
         aitalked_api::text_to_kana(
             &mut job_id,
             &mut context as *mut ProcTextBufContext as *mut std::ffi::c_void,
-            &CString::new(SHIFT_JIS.encode("こんにちは。世界。").0).unwrap(),
+            &CString::new(SHIFT_JIS.encode(&args.text).0).unwrap(),
         )
     };
     println!("aitalked_api::text_to_kana: {code:?}");
