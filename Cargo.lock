@@ -9,6 +9,7 @@ dependencies = [
  "derivative",
  "encoding_rs",
  "libloading",
+ "once_cell",
 ]
 
 [[package]]
