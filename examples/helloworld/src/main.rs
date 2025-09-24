@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 #[command(author, version, about, long_about = None)]
 struct Args {
     // #[arg(env, default_value = "C:\\Program Files (x86)\\Gynoid\\GynoidTalk")]
-    #[arg(env, default_value = "C:\\Program Files (x86)\\AHS\\VOICEROID2")]
+    #[arg(long, env, default_value = "C:\\Program Files (x86)\\AHS\\VOICEROID2")]
     installation_dir: PathBuf,
     #[arg(long, env, default_value = "aitalked.dll")]
     aitalked_dll: PathBuf,
@@ -235,7 +235,9 @@ async fn main() -> Result<()> {
     // let code = unsafe { aitalked_api::voice_clear() };
     // println!("aitalked_api::voice_clear code: {:?}", code);
 
-    let code = unsafe { aitalked_api::voice_load(&CString::new("akari_44").unwrap()) };
+    let code = unsafe {
+        aitalked_api::voice_load(&CString::new(SHIFT_JIS.encode(&args.character).0).unwrap())
+    };
     println!("aitalked_api::voice_load code: {:?}", code);
 
     /*\
