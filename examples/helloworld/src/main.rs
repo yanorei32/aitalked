@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use aitalked::{api as aitalked_api, binding::*, model::*};
 use anyhow::Result;
 use clap::Parser;
+use directories::UserDirs;
 use encoding_rs::*;
 use tokio::sync::mpsc;
 
@@ -198,8 +199,39 @@ async fn main() -> Result<()> {
         let code = unsafe { aitalked_api::lang_load(&CString::new("Lang\\standard").unwrap()) };
         println!("aitalked_api::lang_load code: {:?}", code);
 
+        let user_dir = UserDirs::new().unwrap();
+        let document = user_dir.document_dir().unwrap();
+
+        let code = unsafe {
+            aitalked_api::reload_word_dic(Some(&path_to_cstring(
+                &document.join("VOICEROID2\\単語辞書\\user.wdic"),
+            )))
+        };
+        println!("aitalked_api::reload_word_dic code: {:?}", code);
+
+        let code = unsafe {
+            aitalked_api::reload_phrase_dic(Some(&path_to_cstring(
+                &document.join("VOICEROID2\\フレーズ辞書\\user.pdic"),
+            )))
+        };
+        println!("aitalked_api::reload_phrase_dic code: {:?}", code);
+
+        let code = unsafe {
+            aitalked_api::reload_symbol_dic(Some(&path_to_cstring(
+                &document.join("VOICEROID2\\記号ポーズ辞書\\user.sdic"),
+            )))
+        };
+        println!("aitalked_api::reload_symbol_dic code: {:?}", code);
+
         std::env::set_current_dir(&original_working_dir)?;
     }
+
+    println!("aitalked_api::voice_load code: {:?}", code);
+
+    // let code = unsafe { aitalked_api::lang_clear() };
+    // println!("aitalked_api::lang_clear code: {:?}", code);
+    // let code = unsafe { aitalked_api::voice_clear() };
+    // println!("aitalked_api::voice_clear code: {:?}", code);
 
     let code = unsafe { aitalked_api::voice_load(&CString::new("akari_44").unwrap()) };
     println!("aitalked_api::voice_load code: {:?}", code);

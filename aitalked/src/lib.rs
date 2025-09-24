@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use std::path::Path;
 
 pub mod api;
