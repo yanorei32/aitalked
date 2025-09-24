@@ -28,6 +28,7 @@ pub(crate) struct Aitalked<'lib> {
         unsafe extern "system" fn(*mut i32, *const JobParam, *const c_char) -> ResultCode,
     >,
     get_data: Symbol<'lib, unsafe extern "system" fn(i32, *mut u8, u32, *mut u32) -> ResultCode>,
+    get_status: Symbol<'lib, unsafe extern "system" fn(i32, *mut StatusCode) -> ResultCode>,
     close_speech: Symbol<'lib, unsafe extern "system" fn(i32, i32) -> ResultCode>,
     reload_phrase_dic: Symbol<'lib, unsafe extern "system" fn(*const c_char) -> ResultCode>,
     reload_word_dic: Symbol<'lib, unsafe extern "system" fn(*const c_char) -> ResultCode>,
@@ -49,6 +50,7 @@ impl<'lib> Aitalked<'lib> {
         let text_to_speech = lib.get(b"_AITalkAPI_TextToSpeech@12")?;
         let close_speech = lib.get(b"_AITalkAPI_CloseSpeech@8")?;
         let get_data = lib.get(b"_AITalkAPI_GetData@16")?;
+        let get_status = lib.get(b"_AITalkAPI_GetStatus@8")?;
         let reload_phrase_dic = lib.get(b"_AITalkAPI_ReloadPhraseDic@4")?;
         let reload_word_dic = lib.get(b"_AITalkAPI_ReloadWordDic@4")?;
         let reload_symbol_dic = lib.get(b"_AITalkAPI_ReloadSymbolDic@4")?;
@@ -67,6 +69,7 @@ impl<'lib> Aitalked<'lib> {
             text_to_speech,
             close_speech,
             get_data,
+            get_status,
             reload_phrase_dic,
             reload_word_dic,
             reload_symbol_dic,
@@ -109,6 +112,7 @@ pub unsafe fn voice_clear() -> ResultCode {
         .expect("aitalked::load_dll() is not called.")
         .voice_clear)()
 }
+
 
 pub unsafe fn get_param(tts_param: *mut TtsParam, size: *mut u32) -> ResultCode {
     (AITALKED_BINDS
@@ -176,6 +180,14 @@ pub unsafe fn get_data(job_id: i32, buffer: &mut [u8], words_read: &mut u32) -> 
         (buffer.len() / 2) as u32,
         words_read,
     )
+}
+
+pub unsafe fn get_status(job_id: i32, code: &mut StatusCode) -> ResultCode {
+    let status_code = StatusCode::WRONG_STATE;
+    (AITALKED_BINDS
+        .get()
+        .expect("aitalked::load_dll() is not called.")
+        .get_status)(job_id, code)
 }
 
 /// unknownは0にしておくとよろしいらしい

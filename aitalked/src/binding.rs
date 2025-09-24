@@ -29,6 +29,17 @@ bitflags::bitflags! {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
+pub enum StatusCode {
+    WRONG_STATE = -1,
+    INPROGRESS = 10,
+    STILL_RUNNING = 11,
+    DONE = 12,
+}
+
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+#[allow(non_camel_case_types)]
 pub enum EventReasonCode {
     TEXTBUF_FULL = 101,
     TEXTBUF_FLUSH = 102,
