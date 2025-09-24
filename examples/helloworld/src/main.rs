@@ -216,7 +216,10 @@ async fn main() -> Result<()> {
     let mut actual_tts_param_size = 0;
 
     let code = unsafe { aitalked_api::get_param(std::ptr::null_mut(), &mut actual_tts_param_size) };
-    println!("aitalked_api::get_param: {:?} (expects: INSUFFICIENT)", code);
+    println!(
+        "aitalked_api::get_param: {:?} (expects: INSUFFICIENT)",
+        code
+    );
 
     println!("Actual TtsParamSize: {actual_tts_param_size}");
 
@@ -236,7 +239,9 @@ async fn main() -> Result<()> {
     \*/
     boxed_tts_param.tts_param_mut().pause_begin = 0;
     boxed_tts_param.tts_param_mut().pause_term = 0;
-    boxed_tts_param.tts_param_mut().extend_format = JEITA_RUBY | AUTO_BOOKMARK;
+    boxed_tts_param.tts_param_mut().extend_format =
+        ExtendFormat::JEITA_RUBY | ExtendFormat::AUTO_BOOKMARK;
+
     let code = unsafe { aitalked_api::set_param(boxed_tts_param.tts_param()) };
     println!("aitalked_api::set_param: {code:?}");
 
@@ -310,11 +315,13 @@ async fn main() -> Result<()> {
         len_raw_buf_words: boxed_tts_param.tts_param().len_raw_buf_words,
     };
 
-    let code = unsafe { aitalked_api::text_to_speech(
-        &mut job_id,
-        &mut context as *mut TextToSpeechContext as *mut std::ffi::c_void,
-        &kana,
-    ) };
+    let code = unsafe {
+        aitalked_api::text_to_speech(
+            &mut job_id,
+            &mut context as *mut TextToSpeechContext as *mut std::ffi::c_void,
+            &kana,
+        )
+    };
     println!("aitalked_api::text_to_speech: {code:?}");
 
     // await EOF received

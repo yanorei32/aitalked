@@ -16,11 +16,17 @@ fn format_sjis_cchar_slice(
 
 pub const LEN_TEXT_BUF_MAX: u32 = 64 * 1024;
 pub const LEN_RAW_BUF_MAX_BYTES: u32 = 1024 * 1024;
-pub const JEITA_RUBY: i32 = 1;
-pub const AUTO_BOOKMARK: i32 = 16;
+
+bitflags::bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ExtendFormat: i32 {
+        const JEITA_RUBY = 1;
+        const AUTO_BOOKMARK = 16;
+    }
+}
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
 pub enum EventReasonCode {
@@ -36,7 +42,7 @@ pub enum EventReasonCode {
 }
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
 pub enum ResultCode {
@@ -68,7 +74,7 @@ pub enum ResultCode {
 }
 
 #[repr(i32)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 #[allow(non_camel_case_types)]
 pub enum JobInOut {
@@ -83,14 +89,14 @@ pub const MAX_VOICE_NAME: usize = 80;
 pub const MAX_JEITA_CONTROL: usize = 12;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JobParam {
     pub model_in_out: JobInOut,
     pub user_data: *mut c_void,
 }
 
 #[repr(C)]
-#[derive(Derivative)]
+#[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct JeitaParam {
     #[derivative(Debug(format_with = "format_sjis_cchar_slice"))]
@@ -119,7 +125,7 @@ impl Default for JeitaParam {
 
 #[repr(C)]
 #[derive(Derivative)]
-#[derivative(Debug)]
+#[derivative(Debug, Clone)]
 pub struct SpeakerParam {
     #[derivative(Debug(format_with = "format_sjis_cchar_slice"))]
     pub voice_name: [c_char; MAX_VOICE_NAME],
@@ -152,7 +158,7 @@ impl Default for SpeakerParam {
 
 #[repr(C)]
 #[derive(Derivative)]
-#[derivative(Debug)]
+#[derivative(Debug, Clone)]
 pub struct TtsParam {
     pub size: u32,
     pub proc_text_buf: Option<unsafe extern "system" fn(EventReasonCode, i32, *mut c_void) -> i32>,
@@ -166,7 +172,7 @@ pub struct TtsParam {
     pub volume: f32,
     pub pause_begin: i32,
     pub pause_term: i32,
-    pub extend_format: i32,
+    pub extend_format: ExtendFormat,
     #[derivative(Debug(format_with = "format_sjis_cchar_slice"))]
     pub voice_name: [c_char; MAX_VOICE_NAME],
     pub jeita: JeitaParam,
@@ -176,7 +182,7 @@ pub struct TtsParam {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AitalkedConfig {
     pub hz_voice_db: u32,
     pub dir_voice_dbs: *const c_char,
@@ -185,4 +191,3 @@ pub struct AitalkedConfig {
     pub code_auth_seed: *const c_char,
     pub len_auth_seed: u32,
 }
-

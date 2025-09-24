@@ -1,6 +1,4 @@
-use std::{
-    alloc::{alloc, dealloc, Layout},
-};
+use std::alloc::{alloc, dealloc, Layout};
 
 use crate::binding::*;
 
