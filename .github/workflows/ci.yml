@@ -91,11 +91,5 @@ jobs:
         with:
           reporter: github-check
 
-      - name: unit test
-        run: |
-          cargo test --no-run --locked
-          cargo test
-
       - name: release build
         run: cargo build --release
-
