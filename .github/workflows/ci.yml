@@ -33,11 +33,11 @@ jobs:
         with:
           submodules: true
 
-      - if: ${{ matrix.target == 'x86_64-pc-windows-gnu' }}
+      - if: ${{ matrix.target == 'i686-pc-windows-gnu' }}
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y gcc-mingw-w64-x86-64
-          rustup target add x86_64-pc-windows-gnu
+          sudo apt-get install -y gcc-mingw-w64-i686
+          rustup target add i686-pc-windows-gnu
 
       - uses: Swatinem/rust-cache@v2.8.1
         with:
