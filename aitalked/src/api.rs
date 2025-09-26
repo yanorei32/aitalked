@@ -3,10 +3,9 @@ use std::ffi::{c_char, c_void, CStr};
 use libloading::{Library, Symbol};
 
 use crate::binding::*;
-use crate::AITALKED_BINDS;
 
 #[derive(Debug)]
-pub(crate) struct Aitalked<'lib> {
+pub(crate) struct AitalkedInner<'lib> {
     init: Symbol<'lib, unsafe extern "system" fn(*const AitalkedConfig) -> ResultCode>,
     lang_load: Symbol<'lib, unsafe extern "system" fn(*const c_char) -> ResultCode>,
     lang_clear: Symbol<'lib, unsafe extern "system" fn() -> ResultCode>,
@@ -35,7 +34,7 @@ pub(crate) struct Aitalked<'lib> {
     reload_symbol_dic: Symbol<'lib, unsafe extern "system" fn(*const c_char) -> ResultCode>,
 }
 
-impl<'lib> Aitalked<'lib> {
+impl<'lib> AitalkedInner<'lib> {
     pub(crate) unsafe fn new(lib: &'lib Library) -> Result<Self, libloading::Error> {
         let init = lib.get(b"_AITalkAPI_Init@4")?;
         let lang_load = lib.get(b"_AITalkAPI_LangLoad@4")?;
@@ -77,171 +76,142 @@ impl<'lib> Aitalked<'lib> {
     }
 }
 
-pub unsafe fn init(config: &AitalkedConfig) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .init)(config)
+#[derive(Debug, Clone, Copy)]
+pub struct Aitalked {
+    pub(crate) inner: &'static AitalkedInner<'static>,
 }
 
-/// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
-pub unsafe fn lang_load(lang_name: &CStr) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .lang_load)(lang_name.as_ptr())
-}
+impl Aitalked {
+    pub unsafe fn init(&self, config: &AitalkedConfig) -> ResultCode {
+        (self.inner.init)(config)
+    }
 
-pub unsafe fn lang_clear() -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .lang_clear)()
-}
+    /// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
+    pub unsafe fn lang_load(&self, lang_name: &CStr) -> ResultCode {
+        (self.inner.lang_load)(lang_name.as_ptr())
+    }
 
-pub unsafe fn voice_load(voice_name: &CStr) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .voice_load)(voice_name.as_ptr())
-}
+    pub unsafe fn lang_clear(&self) -> ResultCode {
+        (self.inner.lang_clear)()
+    }
 
-pub unsafe fn voice_clear() -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .voice_clear)()
-}
+    pub unsafe fn voice_load(&self, voice_name: &CStr) -> ResultCode {
+        (self.inner.voice_load)(voice_name.as_ptr())
+    }
 
+    pub unsafe fn voice_clear(&self) -> ResultCode {
+        (self.inner.voice_clear)()
+    }
 
-pub unsafe fn get_param(tts_param: *mut TtsParam, size: *mut u32) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .get_param)(tts_param, size)
-}
+    pub unsafe fn get_param(&self, tts_param: *mut TtsParam, size: *mut u32) -> ResultCode {
+        (self.inner.get_param)(tts_param, size)
+    }
 
-pub unsafe fn set_param(tts_param: &TtsParam) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .set_param)(tts_param)
-}
+    pub unsafe fn set_param(&self, tts_param: &TtsParam) -> ResultCode {
+        (self.inner.set_param)(tts_param)
+    }
 
-pub unsafe fn text_to_kana(job_id: &mut i32, user_data: *mut c_void, text: &CStr) -> ResultCode {
-    let job_param = JobParam {
-        user_data,
-        model_in_out: JobInOut::PLAIN_TO_AIKANA,
-    };
+    pub unsafe fn text_to_kana(
+        &self,
+        job_id: &mut i32,
+        user_data: *mut c_void,
+        text: &CStr,
+    ) -> ResultCode {
+        let job_param = JobParam {
+            user_data,
+            model_in_out: JobInOut::PLAIN_TO_AIKANA,
+        };
 
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .text_to_kana)(job_id, &job_param, text.as_ptr())
-}
+        (self.inner.text_to_kana)(job_id, &job_param, text.as_ptr())
+    }
 
-pub unsafe fn text_to_speech(job_id: &mut i32, user_data: *mut c_void, text: &CStr) -> ResultCode {
-    let job_param = JobParam {
-        user_data,
-        model_in_out: JobInOut::AIKANA_TO_WAVE,
-    };
+    pub unsafe fn text_to_speech(
+        &self,
+        job_id: &mut i32,
+        user_data: *mut c_void,
+        text: &CStr,
+    ) -> ResultCode {
+        let job_param = JobParam {
+            user_data,
+            model_in_out: JobInOut::AIKANA_TO_WAVE,
+        };
 
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .text_to_speech)(job_id, &job_param, text.as_ptr())
-}
+        (self.inner.text_to_speech)(job_id, &job_param, text.as_ptr())
+    }
 
-pub unsafe fn get_kana(
-    job_id: i32,
-    buffer: &mut [u8],
-    bytes_read: &mut u32,
-    position: &mut u32,
-) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .get_kana)(
-        job_id,
-        buffer.as_mut_ptr(),
-        buffer.len() as u32,
-        bytes_read,
-        position,
-    )
-}
+    pub unsafe fn get_kana(
+        &self,
+        job_id: i32,
+        buffer: &mut [u8],
+        bytes_read: &mut u32,
+        position: &mut u32,
+    ) -> ResultCode {
+        (self.inner.get_kana)(
+            job_id,
+            buffer.as_mut_ptr(),
+            buffer.len() as u32,
+            bytes_read,
+            position,
+        )
+    }
 
-pub unsafe fn get_data(job_id: i32, buffer: &mut [u8], words_read: &mut u32) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .get_data)(
-        job_id,
-        buffer.as_mut_ptr(),
-        (buffer.len() / 2) as u32,
-        words_read,
-    )
-}
+    pub unsafe fn get_data(
+        &self,
+        job_id: i32,
+        buffer: &mut [u8],
+        words_read: &mut u32,
+    ) -> ResultCode {
+        (self.inner.get_data)(
+            job_id,
+            buffer.as_mut_ptr(),
+            (buffer.len() / 2) as u32,
+            words_read,
+        )
+    }
 
-pub unsafe fn get_status(job_id: i32, code: &mut StatusCode) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .get_status)(job_id, code)
-}
+    pub unsafe fn get_status(&self, job_id: i32, code: &mut StatusCode) -> ResultCode {
+        (self.inner.get_status)(job_id, code)
+    }
 
-/// unknownは0にしておくとよろしいらしい
-/// REF: https://github.com/Nkyoku/pyvcroid2/blob/01d7e4b30e6b055f8cf1a3b0ad1c35d211754027/pyvcroid2/pyvcroid2.py#L396
-pub unsafe fn close_kana(job_id: i32, unknown: i32) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .close_kana)(job_id, unknown)
-}
+    /// unknownは0にしておくとよろしいらしい
+    /// REF: https://github.com/Nkyoku/pyvcroid2/blob/01d7e4b30e6b055f8cf1a3b0ad1c35d211754027/pyvcroid2/pyvcroid2.py#L396
+    pub unsafe fn close_kana(&self, job_id: i32, unknown: i32) -> ResultCode {
+        (self.inner.close_kana)(job_id, unknown)
+    }
 
-/// unknownは0にしておくとよろしいらしい
-/// REF: https://github.com/Nkyoku/pyvcroid2/blob/01d7e4b30e6b055f8cf1a3b0ad1c35d211754027/pyvcroid2/pyvcroid2.py#L492
-pub unsafe fn close_speech(job_id: i32, unknown: i32) -> ResultCode {
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .close_speech)(job_id, unknown)
-}
+    /// unknownは0にしておくとよろしいらしい
+    /// REF: https://github.com/Nkyoku/pyvcroid2/blob/01d7e4b30e6b055f8cf1a3b0ad1c35d211754027/pyvcroid2/pyvcroid2.py#L492
+    pub unsafe fn close_speech(&self, job_id: i32, unknown: i32) -> ResultCode {
+        (self.inner.close_speech)(job_id, unknown)
+    }
 
-/// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
-pub unsafe fn reload_phrase_dic(path: Option<&CStr>) -> ResultCode {
-    let path = match path {
-        Some(path) => path.as_ptr(),
-        None => std::ptr::null(),
-    };
+    /// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
+    pub unsafe fn reload_phrase_dic(&self, path: Option<&CStr>) -> ResultCode {
+        let path = match path {
+            Some(path) => path.as_ptr(),
+            None => std::ptr::null(),
+        };
 
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .reload_phrase_dic)(path)
-}
+        (self.inner.reload_phrase_dic)(path)
+    }
 
-/// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
-pub unsafe fn reload_word_dic(path: Option<&CStr>) -> ResultCode {
-    let path = match path {
-        Some(path) => path.as_ptr(),
-        None => std::ptr::null(),
-    };
+    /// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
+    pub unsafe fn reload_word_dic(&self, path: Option<&CStr>) -> ResultCode {
+        let path = match path {
+            Some(path) => path.as_ptr(),
+            None => std::ptr::null(),
+        };
 
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .reload_word_dic)(path)
-}
+        (self.inner.reload_word_dic)(path)
+    }
 
-/// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
-pub unsafe fn reload_symbol_dic(path: Option<&CStr>) -> ResultCode {
-    let path = match path {
-        Some(path) => path.as_ptr(),
-        None => std::ptr::null(),
-    };
+    /// NOTE: Install DirectoryがCurrent Working Directoryでないと正常に動作しない
+    pub unsafe fn reload_symbol_dic(&self, path: Option<&CStr>) -> ResultCode {
+        let path = match path {
+            Some(path) => path.as_ptr(),
+            None => std::ptr::null(),
+        };
 
-    (AITALKED_BINDS
-        .get()
-        .expect("aitalked::load_dll() is not called.")
-        .reload_symbol_dic)(path)
+        (self.inner.reload_symbol_dic)(path)
+    }
 }
