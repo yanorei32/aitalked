@@ -179,7 +179,12 @@ async fn main() -> Result<()> {
     /*\
     |*| Load DLL
     \*/
-    unsafe { aitalked::load_dll(&args.installation_dir.join(&args.aitalked_dll)) }.unwrap();
+    {
+        let original_working_dir = std::env::current_dir()?;
+        std::env::set_current_dir(&args.installation_dir)?;
+        unsafe { aitalked::load_dll(&args.installation_dir.join(&args.aitalked_dll)) }.unwrap();
+        std::env::set_current_dir(&original_working_dir)?;
+    }
 
     let code = unsafe {
         aitalked_api::init(&AitalkedConfig {
@@ -227,8 +232,6 @@ async fn main() -> Result<()> {
 
         std::env::set_current_dir(&original_working_dir)?;
     }
-
-    println!("aitalked_api::voice_load code: {:?}", code);
 
     // let code = unsafe { aitalked_api::lang_clear() };
     // println!("aitalked_api::lang_clear code: {:?}", code);
