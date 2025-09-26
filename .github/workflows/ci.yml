@@ -36,7 +36,7 @@ jobs:
       - if: ${{ matrix.target == 'i686-pc-windows-gnu' }}
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y gcc-mingw-w64-i686 binutils-mingw-w64-i686
+          sudo apt-get install -y gcc-mingw-w64-i686
           rustup target add i686-pc-windows-gnu
 
       - uses: Swatinem/rust-cache@v2.8.1
@@ -69,6 +69,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5.0.0
+
+      - run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gcc-mingw-w64-i686
+          rustup target add i686-pc-windows-gnu
 
       - name: Get Rust toolchain
         id: toolchain
