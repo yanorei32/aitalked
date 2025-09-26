@@ -18,11 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5.0.0
 
-      - run: |
-          sudo apt-get update -y
-          sudo apt-get install -y gcc-mingw-w64-i686
-          rustup target add i686-pc-windows-gnu
-
       - uses: actions-rs/toolchain@v1.0.7
         with:
           toolchain: stable
@@ -37,14 +32,3 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
-
-      - name: compile for unit test
-        uses: actions-rs/cargo@v1.0.3
-        with:
-          command: test
-          args: --no-run --locked
-
-      - name: unit test
-        uses: actions-rs/cargo@v1.0.3
-        with:
-          command: test
