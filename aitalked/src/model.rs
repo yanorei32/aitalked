@@ -8,6 +8,9 @@ pub struct BoxedTtsParam {
     layout: Layout,
 }
 
+unsafe impl Send for BoxedTtsParam {
+}
+
 impl BoxedTtsParam {
     pub fn new(len: usize) -> Self {
         let header_size = std::mem::size_of::<TtsParam>();
