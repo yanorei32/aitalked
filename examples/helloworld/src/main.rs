@@ -402,6 +402,7 @@ async fn main() -> Result<()> {
     file.write_all(&44100u32.to_le_bytes())?;
     file.write_all(&(44100u32 * 2).to_le_bytes())?;
     file.write_all(b"\x02\x00\x10\x00data")?;
+    file.write_all(&(buffer.len() as u32).to_le_bytes())?;
     file.write_all(&buffer)?;
 
     println!("Output file created");
