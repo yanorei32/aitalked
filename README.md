@@ -1,4 +1,6 @@
 # aitalked
+![unsafe 100%](https://github.com/rochacbruno/rust_memes/blob/master/img/unsafe_badge.jpg)
+
 W.I.P. GynoidTalk / VOICEROID2 Low-Level Rust Binding Library based on @KOBA789 works.
 
 ## Related Projects
