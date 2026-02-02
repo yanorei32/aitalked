@@ -39,7 +39,7 @@ jobs:
           sudo apt-get install -y gcc-mingw-w64-i686
           rustup target add i686-pc-windows-gnu
 
-      - uses: Swatinem/rust-cache@v2.8.1
+      - uses: Swatinem/rust-cache@v2.8.2
         with:
           prefix-key: ${{ env.RUST_CACHE_VERSION }}-rust
 
@@ -87,7 +87,7 @@ jobs:
           components: clippy
 
       - name: cache dependencies
-        uses: Swatinem/rust-cache@v2.8.1
+        uses: Swatinem/rust-cache@v2.8.2
         with:
           prefix-key: ${{ env.RUST_CACHE_VERSION }}-rust
 
